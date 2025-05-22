@@ -7,8 +7,8 @@ const path = require('path');
 // --- Configuration ---
 const QB_USERNAME = process.env.QB_USERNAME;
 const QB_SECRET = process.env.QB_SECRET;
+const DOWNLOAD_DIR = process.env.LOCAL_REPO;
 const BASE_API_URL = 'https://api.qbench.com/v2';
-const DOWNLOAD_DIR = 'downloads';
 
 // --- Axios Instance for QBench API Calls ---
 const api = axios.create({
