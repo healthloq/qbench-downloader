@@ -2,4 +2,4 @@
 *.log
 
 # Ignore the client directory
-#.env
+.env
