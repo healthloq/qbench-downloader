@@ -4,6 +4,8 @@ import axios from 'axios';
 import fs from 'fs-extra';
 import path from 'path';
 import dayjs from 'dayjs';
+//import fs from 'fs';
+//import path from 'path';
 
 dotenv.config();
 
@@ -105,17 +107,25 @@ async function main() {
 
       const fileUrl = detail?.data?.url;
       const filename = `report_${reportId}.pdf`;
+      const fullPath = path.join(DOWNLOAD_DIR, filename);
 
-      if (fileUrl) {
-        const filePath = await downloadFile(fileUrl, filename);
-        console.log(`⬇️  Downloaded ${filename} to ${filePath}`);
-      } else {
-        console.warn(`⚠️  No document URL found for report ID ${reportId}`);
+      if (!fileUrl) {
+        console.warn(`⚠️  No file URL found for report ID ${reportId}`);
+        continue;
       }
+
+      if (fs.existsSync(fullPath)) {
+        console.log(`✅ Skipping already-downloaded report ${filename}`);
+        continue;
+      }
+
+      const filePath = await downloadFile(fileUrl, filename);
+      console.log(`⬇️  Downloaded ${filename} to ${filePath}`);
     }
   } catch (error) {
     console.error('❌ Error:', error.response?.data || error.message);
   }
 }
+
 
 main();
