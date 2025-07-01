@@ -4,21 +4,21 @@ import axios from 'axios';
 import fs from 'fs-extra';
 import path from 'path';
 import dayjs from 'dayjs';
-//import fs from 'fs';
-//import path from 'path';
+import crypto from 'crypto';
+import { URLSearchParams } from 'url';
 
 dotenv.config();
 
 const { QB_USERNAME, QB_SECRET, DOWNLOAD_DIR } = process.env;
+const LOG_FILE = path.join(DOWNLOAD_DIR, 'download_log.json');
+const BASE_URL = 'https://alkemist-sandbox.qbench.net/qbench/api/v2';
+
 
 if (!QB_USERNAME || !QB_SECRET || !DOWNLOAD_DIR) {
   console.error('Missing required environment variables.');
   process.exit(1);
 }
 
-const BASE_URL = 'https://alkemist-sandbox.qbench.net/qbench/api/v2';
-
-import { URLSearchParams } from 'url';
 
 async function getAccessToken() {
   const payload = {
@@ -42,7 +42,6 @@ async function getAccessToken() {
 
   return response.data.access_token;
 }
-
 
 
 
@@ -92,6 +91,28 @@ async function downloadFile(fileUrl, filename) {
   });
 }
 
+
+function getFileHash(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', reject);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
+}
+
+
+function loadDownloadLog() {
+  if (!fs.existsSync(LOG_FILE)) return {};
+  return JSON.parse(fs.readFileSync(LOG_FILE, 'utf-8'));
+}
+
+function saveDownloadLog(log) {
+  fs.writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
+}
+
+
 async function main() {
   try {
     const token = await getAccessToken();
@@ -101,27 +122,61 @@ async function main() {
     console.log(`📄 Found ${reports.length} reports from the last 30 days`);
 
 
-    for (const report of reports) {
-      const reportId = report.id;
-      const detail = await getReportDetail(token, reportId);
+    const downloadLog = loadDownloadLog();
 
-      const fileUrl = detail?.data?.url;
-      const filename = `report_${reportId}.pdf`;
-      const fullPath = path.join(DOWNLOAD_DIR, filename);
+for (const report of reports) {
+  const reportId = report.id;
+  const detail = await getReportDetail(token, reportId);
 
-      if (!fileUrl) {
-        console.warn(`⚠️  No file URL found for report ID ${reportId}`);
-        continue;
-      }
+  const fileUrl = detail?.data?.url;
+  const filename = `report_${reportId}.pdf`;
+  const fullPath = path.join(DOWNLOAD_DIR, filename);
 
-      if (fs.existsSync(fullPath)) {
-        console.log(`✅ Skipping already-downloaded report ${filename}`);
-        continue;
-      }
+  if (!fileUrl) {
+    console.warn(`⚠️  No file URL found for report ID ${reportId}`);
+    continue;
+  }
 
-      const filePath = await downloadFile(fileUrl, filename);
-      console.log(`⬇️  Downloaded ${filename} to ${filePath}`);
+  const tempPath = path.join(DOWNLOAD_DIR, `.tmp_${filename}`);
+
+  // If file exists, check hash
+  if (fs.existsSync(fullPath)) {
+    const existingHash = await getFileHash(fullPath);
+    if (downloadLog[reportId]?.hash === existingHash) {
+      console.log(`✅ Skipping unchanged file for report ${reportId}`);
+      continue;
     }
+  }
+
+  // Download to temporary file
+  const writer = fs.createWriteStream(tempPath);
+  const response = await axios.get(fileUrl, { responseType: 'stream' });
+  response.data.pipe(writer);
+
+  await new Promise((resolve, reject) => {
+    writer.on('finish', resolve);
+    writer.on('error', reject);
+  });
+
+  const downloadedHash = await getFileHash(tempPath);
+
+  // Move temp to final path
+  fs.renameSync(tempPath, fullPath);
+
+  // Update log
+  downloadLog[reportId] = {
+    filename,
+    hash: downloadedHash,
+    downloaded_at: new Date().toISOString()
+  };
+
+  console.log(`⬇️  Downloaded and saved: ${filename}`);
+}
+
+saveDownloadLog(downloadLog);
+
+
+
   } catch (error) {
     console.error('❌ Error:', error.response?.data || error.message);
   }
