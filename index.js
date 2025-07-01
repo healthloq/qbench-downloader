@@ -124,56 +124,56 @@ async function main() {
 
     const downloadLog = loadDownloadLog();
 
-for (const report of reports) {
-  const reportId = report.id;
-  const detail = await getReportDetail(token, reportId);
+    for (const report of reports) {
+      const reportId = report.id;
+      const detail = await getReportDetail(token, reportId);
 
-  const fileUrl = detail?.data?.url;
-  const filename = `report_${reportId}.pdf`;
-  const fullPath = path.join(DOWNLOAD_DIR, filename);
+      const fileUrl = detail?.data?.url;
+      const filename = `report_${reportId}.pdf`;
+      const fullPath = path.join(DOWNLOAD_DIR, filename);
 
-  if (!fileUrl) {
-    console.warn(`⚠️  No file URL found for report ID ${reportId}`);
-    continue;
-  }
+      if (!fileUrl) {
+        console.warn(`⚠️  No file URL found for report ID ${reportId}`);
+        continue;
+      }
 
-  const tempPath = path.join(DOWNLOAD_DIR, `.tmp_${filename}`);
+      const tempPath = path.join(DOWNLOAD_DIR, `.tmp_${filename}`);
 
-  // If file exists, check hash
-  if (fs.existsSync(fullPath)) {
-    const existingHash = await getFileHash(fullPath);
-    if (downloadLog[reportId]?.hash === existingHash) {
-      console.log(`✅ Skipping unchanged file for report ${reportId}`);
-      continue;
+      // If file exists, check hash
+      if (fs.existsSync(fullPath)) {
+        const existingHash = await getFileHash(fullPath);
+        if (downloadLog[reportId]?.hash === existingHash) {
+          console.log(`✅ Skipping unchanged file for report ${reportId}`);
+          continue;
+        }
+      }
+
+      // Download to temporary file
+      const writer = fs.createWriteStream(tempPath);
+      const response = await axios.get(fileUrl, { responseType: 'stream' });
+      response.data.pipe(writer);
+
+      await new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+      });
+
+      const downloadedHash = await getFileHash(tempPath);
+
+      // Move temp to final path
+      fs.renameSync(tempPath, fullPath);
+
+      // Update log
+      downloadLog[reportId] = {
+        filename,
+        hash: downloadedHash,
+        downloaded_at: new Date().toISOString()
+      };
+
+      console.log(`⬇️  Downloaded and saved: ${filename}`);
     }
-  }
 
-  // Download to temporary file
-  const writer = fs.createWriteStream(tempPath);
-  const response = await axios.get(fileUrl, { responseType: 'stream' });
-  response.data.pipe(writer);
-
-  await new Promise((resolve, reject) => {
-    writer.on('finish', resolve);
-    writer.on('error', reject);
-  });
-
-  const downloadedHash = await getFileHash(tempPath);
-
-  // Move temp to final path
-  fs.renameSync(tempPath, fullPath);
-
-  // Update log
-  downloadLog[reportId] = {
-    filename,
-    hash: downloadedHash,
-    downloaded_at: new Date().toISOString()
-  };
-
-  console.log(`⬇️  Downloaded and saved: ${filename}`);
-}
-
-saveDownloadLog(downloadLog);
+    saveDownloadLog(downloadLog);
 
 
 
