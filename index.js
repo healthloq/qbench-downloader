@@ -9,7 +9,7 @@ import { URLSearchParams } from 'url';
 
 dotenv.config();
 
-const { QB_USERNAME, QB_SECRET, DOWNLOAD_DIR } = process.env;
+const { QB_USERNAME, QB_SECRET, QB_DAYS_BACK, DOWNLOAD_DIR } = process.env;
 const LOG_FILE = path.join(DOWNLOAD_DIR, 'download_log.json');
 const BASE_URL = 'https://alkemist-sandbox.qbench.net/qbench/api/v2';
 
@@ -46,7 +46,7 @@ async function getAccessToken() {
 
 
 async function getRecentReports(token) {
-  const dateFrom = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+  const dateFrom = dayjs().subtract(QB_DAYS_BACK, 'day').format('YYYY-MM-DD');
 
   const response = await axios.get(`${BASE_URL}/reports`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -70,7 +70,7 @@ async function getReportDetail(token, reportId) {
     headers: { Authorization: `Bearer ${token}` }
   });
 
-  console.log(`📦 Report ${reportId} detail:`, response.data); // <-- ADD THIS
+  console.log(`📦 Report ${reportId} detail:`, response.data); 
 
   return response.data;
 }
@@ -119,7 +119,7 @@ async function main() {
     console.log('✅ Authenticated successfully');
 
     const reports = await getRecentReports(token);
-    console.log(`📄 Found ${reports.length} reports from the last 30 days`);
+    console.log(`📄 Found ${reports.length} reports from the specified timeframe`);
 
 
     const downloadLog = loadDownloadLog();
