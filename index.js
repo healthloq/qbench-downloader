@@ -9,9 +9,8 @@ import { URLSearchParams } from 'url';
 
 dotenv.config();
 
-const { QB_USERNAME, QB_SECRET, QB_DAYS_BACK, DOWNLOAD_DIR } = process.env;
+const { QB_USERNAME, QB_SECRET, QB_DAYS_BACK, DOWNLOAD_DIR, BASE_URL } = process.env;
 const LOG_FILE = path.join(DOWNLOAD_DIR, 'download_log.json');
-const BASE_URL = 'https://alkemist-sandbox.qbench.net/qbench/api/v2';
 
 
 if (!QB_USERNAME || !QB_SECRET || !DOWNLOAD_DIR) {
