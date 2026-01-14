@@ -124,13 +124,42 @@ async function fetchReportPage(dateFrom, pageNumber) {
   };
 }
 
-async function getReportDetail(reportId) {
+async function getReportDetail(reportId, fromDate) {
   const { data } = await authRequest({
     method: 'GET',
     url: `${BASE_URL}/reports/${reportId}`
   });
+
+  const publishedRaw = data?.data?.date_published;
+
+  if (!publishedRaw) {
+    console.warn(`⚠️ Report ${reportId} missing date_published — skipping`);
+    return null;
+  }
+
+  const publishedDate = dayjs(publishedRaw);
+  const cutoffDate = dayjs(fromDate);
+
+  if (!publishedDate.isValid()) {
+    console.warn(`⚠️ Report ${reportId} has invalid date: ${publishedRaw}`);
+    return null;
+  }
+
+  // ❗ Ignore reports published on/before fromDate
+  if (!publishedDate.isAfter(cutoffDate)) {
+    console.log(
+      `⏭️ Skipping report ${reportId} — published ${publishedDate.format('YYYY-MM-DD')} before cutoff ${cutoffDate.format('YYYY-MM-DD')}`
+    );
+    return null;
+  }
+
+  console.log(
+    `ℹ️ Accepted report ${reportId}, published ${publishedDate.format('YYYY-MM-DD')}`
+  );
+
   return data;
 }
+
 
 // ---------------------------------------------------------------------------
 // File Utilities
@@ -175,9 +204,9 @@ function writeDownloadLog(log) {
 // Report Processing
 // ---------------------------------------------------------------------------
 
-async function processReport(report, downloadLog) {
+async function processReport(report, downloadLog, dateFrom) {
   const reportId = report.id;
-  const detail = await getReportDetail(reportId);
+  const detail = await getReportDetail(reportId, dateFrom);
   const fileUrl = detail?.data?.url;
 
   if (!fileUrl) {
@@ -225,6 +254,7 @@ async function main() {
     const downloadLog = readDownloadLog();
     const downloadedIds = new Set(Object.keys(downloadLog));
     const dateFrom = dayjs().subtract(QB_DAYS_BACK, 'day').format('YYYY-MM-DD');
+    console.log('Fetching reports from date:', dateFrom);
 
     let pageNumber = 1;
     let totalPages = null;
@@ -251,7 +281,7 @@ async function main() {
           continue;
         }
 
-        const downloaded = await processReport(report, downloadLog);
+        const downloaded = await processReport(report, downloadLog, dateFrom);
         if (downloaded) {
           downloadedIds.add(idStr);
           totalDownloaded++;
