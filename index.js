@@ -102,7 +102,9 @@ async function fetchReportPage(dateFrom, pageNumber) {
   const params = {
     created_after: dateFrom,
     page_size: 50,
-    page_num: pageNumber
+    page_num: pageNumber,
+    report_render_statuses: 'SUCCESSFUL',  //array<string>
+    statuses: 'PUBLISHED' // array<string>
   };
 
   const { data } = await authRequest({
@@ -110,6 +112,7 @@ async function fetchReportPage(dateFrom, pageNumber) {
     url: `${BASE_URL}/reports`,
     params
   });
+//  console.log('Expected reports response:', data);
 
   if (!Array.isArray(data?.data)) {
     console.error('Unexpected reports response:', data);
